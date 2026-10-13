@@ -1,0 +1,42 @@
+services:
+  - type: web
+    name: rucst-student-portal-api
+    runtime: node
+    region: frankfurt
+    plan: free
+    rootDir: backend
+    buildCommand: npm ci && npm test
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: MONGO_URI
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      - key: CORS_ORIGINS
+        value: https://rucst-student-portal-web.onrender.com
+      - key: FRONTEND_URL
+        value: https://rucst-student-portal-web.onrender.com
+      - key: BOOTSTRAP_ADMIN_EMAIL
+        value: admin@rucst.edu.gh
+      - key: BOOTSTRAP_ADMIN_PASSWORD
+        value: Admin@1234
+      - key: BOOTSTRAP_ADMIN_RESET_PASSWORD
+        value: "true"
+
+  - type: web
+    name: rucst-student-portal-web
+    runtime: node
+    region: frankfurt
+    plan: free
+    rootDir: frontend
+    buildCommand: npm ci && npm run build
+    startCommand: npm start
+    envVars:
+      - key: NEXT_PUBLIC_API_URL
+        value: /api
+      - key: BACKEND_URL
+        value: https://rucst-student-portal-api.onrender.com
+          

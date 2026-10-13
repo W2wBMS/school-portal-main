@@ -5,6 +5,7 @@ const morgan = require('morgan');
 const cookieParser = require('cookie-parser');
 const dotenv = require('dotenv');
 const mongoose = require('mongoose');
+const User = require('./models/User');
 const { csrfProtection, setCsrfCookie } = require('./middleware/csrf');
 const { getDatabaseStatus, isDatabaseUnavailable } = require('./utils/databaseStatus');
 const { getAllowedOrigins } = require('./utils/corsOrigins');
@@ -41,7 +42,8 @@ app.get('/api/health', async (req, res) => {
       await mongoose.connection.db.admin().ping();
       usersCount = await User.countDocuments();
       adminExists = !!(await User.findOne({ email: 'admin@rucst.edu.gh' }));
-    } catch {
+    } catch (error) {
+      console.error(`Health check failed: ${error.name || 'Error'}`);
       database = 'unavailable';
     }
   }

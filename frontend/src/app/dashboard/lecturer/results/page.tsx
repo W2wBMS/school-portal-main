@@ -118,6 +118,10 @@ export default function LecturerResultsPage() {
 
   async function importResults(event: React.FormEvent) {
     event.preventDefault();
+    if (new Blob([csvText]).size > 5_000_000) {
+      setError('Results CSV files must be smaller than 5 MB.');
+      return;
+    }
     setError('');
     setMessage('');
     setSaving(true);
@@ -128,7 +132,7 @@ export default function LecturerResultsPage() {
         headers: authHeaders(true),
         body: JSON.stringify({ csv: csvText }),
       });
-      const data = await response.json();
+      const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.message || 'Unable to import result records.');
       setMessage(data.message || 'Result rows submitted for academic approval.');
       await refreshResults();
@@ -205,8 +209,13 @@ export default function LecturerResultsPage() {
   async function readCsvFile(event: React.ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
     if (!file) return;
-    setCsvFileName(file.name);
-    setCsvText(await file.text());
+    if (file.size > 5_000_000) { setError('Choose a results CSV smaller than 5 MB.'); event.target.value = ''; return; }
+    try {
+      setCsvFileName(file.name);
+      setCsvText(await file.text());
+    } catch (reason) {
+      setError(reason instanceof Error ? `Unable to read CSV file: ${reason.message}` : 'Unable to read the selected CSV file.');
+    }
   }
 
   const courseResults = results.filter((result) => (typeof result.courseId === 'object' ? result.courseId?._id : result.courseId) === courseId);
@@ -231,7 +240,7 @@ export default function LecturerResultsPage() {
         </section>
 
         <section className="rounded-2xl bg-white p-5 ring-1 ring-slate-200">
-          <h3 className="text-lg font-bold text-[#11222d]">Upload results CSV</h3>
+          <h3 className="text-lg font-bold text-[#11222d]">Upload results CSV <span className="text-sm font-normal text-slate-500">· up to 5 MB</span></h3>
           <p className="mt-1 text-sm text-slate-500">Rows for courses not assigned to you or students outside the approved roster are skipped.</p>
           <form onSubmit={importResults} className="mt-4 space-y-3">
             <input type="file" accept=".csv,text/csv" onChange={readCsvFile} className="block w-full text-sm text-slate-600 file:mr-4 file:rounded-lg file:border-0 file:bg-[#0d5a4d] file:px-3 file:py-2 file:text-sm file:font-semibold file:text-white" />

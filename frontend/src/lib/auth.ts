@@ -91,6 +91,7 @@ export function canAccessRoute(role: Role | string, pathname: string) {
       '/dashboard/student/fees',
       '/dashboard/student/payments',
       '/dashboard/student/registration',
+      '/dashboard/student/admission-offer',
       '/dashboard/student/profile',
       '/dashboard/student/support',
     ],

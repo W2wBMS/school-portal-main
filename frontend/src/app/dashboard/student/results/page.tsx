@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { AlertCircle, Printer, FileText, GraduationCap, BookOpen, Calculator, Sparkles, X, CheckCircle2 } from 'lucide-react';
+import { AlertCircle, Printer, FileText, GraduationCap, BookOpen } from 'lucide-react';
 import { fetchStudentOverview, type AcademicSummary, type ResultRow } from '@/lib/portal';
 
 function getLatestSemesterName(semesters: AcademicSummary['semesters']) {
@@ -40,11 +40,6 @@ export default function StudentResultsPage() {
     fullName?: string; studentId?: string; email?: string;
     programme?: string; department?: string; level?: string;
   } | null>(null);
-
-  const [simModalOpen, setSimModalOpen] = useState(false);
-  const [simScore1, setSimScore1] = useState(85);
-  const [simScore2, setSimScore2] = useState(90);
-  const [simScore3, setSimScore3] = useState(88);
 
   const printableSemester = semester === 'all' ? summary?.semesters[0]?.semester ?? 'Semester 1' : semester;
   const printableRows = results.filter(r => r.semester === printableSemester);
@@ -87,10 +82,6 @@ export default function StudentResultsPage() {
     (semester === 'all' || r.semester === semester)
   );
 
-  // Calculate simulated CGPA
-  const currentCgpa = summary?.cgpa || 3.72;
-  const simulatedGpa = Math.min(4.0, Math.max(2.0, (currentCgpa * 0.7) + ((simScore1 + simScore2 + simScore3) / 300 * 4.0 * 0.3))).toFixed(2);
-
   return (
     <div className="pg-page">
       {/* CGPA + action banner */}
@@ -98,12 +89,9 @@ export default function StudentResultsPage() {
         <div className="pg-stat hover-lift" style={{ gridColumn: 'span 1' }}>
           <div className="pg-stat-top">
             <div className="pg-stat-icon crimson"><GraduationCap size={20} /></div>
-            <button onClick={() => setSimModalOpen(true)} style={{ background: '#fdf2f2', color: '#a51c30', border: '1px solid #fecaca', borderRadius: '6px', padding: '3px 8px', fontSize: '11px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer' }}>
-              <Calculator size={13} /> Simulate
-            </button>
           </div>
           <div>
-            <div className="pg-stat-value" style={{ color: '#a51c30' }}>{summary?.cgpa.toFixed(2) || '3.72'}</div>
+            <div className="pg-stat-value" style={{ color: '#a51c30' }}>{summary?.cgpa.toFixed(2) ?? '—'}</div>
             <div className="pg-stat-label">Cumulative GPA (CGPA)</div>
           </div>
         </div>
@@ -112,7 +100,7 @@ export default function StudentResultsPage() {
             <div className="pg-stat-icon green"><BookOpen size={20} /></div>
           </div>
           <div>
-            <div className="pg-stat-value">{summary?.totalCredits || 72}</div>
+            <div className="pg-stat-value">{summary?.totalCredits ?? 0}</div>
             <div className="pg-stat-label">Total Credits Earned</div>
           </div>
         </div>
@@ -138,9 +126,6 @@ export default function StudentResultsPage() {
             <p className="pg-page-subtitle">Your published grades and performance metrics across semesters.</p>
           </div>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            <button onClick={() => setSimModalOpen(true)} className="pg-btn pg-btn-primary hover-lift">
-              <Sparkles size={15} /> CGPA Calculator
-            </button>
             <button onClick={handlePrint} className="pg-btn pg-btn-outline">
               <Printer size={15} /> Print result
             </button>
@@ -216,56 +201,6 @@ export default function StudentResultsPage() {
         )}
       </div>
 
-      {/* CGPA Simulator Modal */}
-      {simModalOpen && (
-        <div className="pg-modal-overlay">
-          <div className="pg-modal-card">
-            <div className="pg-modal-header">
-              <div className="pg-modal-title"><Calculator size={18} /> Target CGPA Simulator</div>
-              <button className="pg-modal-close" onClick={() => setSimModalOpen(false)}><X size={16} /></button>
-            </div>
-            <div className="pg-modal-body">
-              <div className="cgpa-sim-box">
-                <div style={{ fontSize: "12px", textTransform: "uppercase", letterSpacing: "0.05em", opacity: 0.85, fontWeight: 700 }}>Projected Target CGPA</div>
-                <div className="cgpa-sim-val">{simulatedGpa}</div>
-                <div style={{ fontSize: "12px", marginTop: "4px", opacity: 0.9 }}>
-                  Based on current CGPA ({currentCgpa.toFixed(2)}) + 3 upcoming course estimates.
-                </div>
-              </div>
-
-              <div className="cgpa-slider-group" style={{ marginTop: "20px" }}>
-                <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: "13px", fontWeight: 700, color: "#1e293b" }}>
-                    <span>CS 301 Database Systems Estimate</span>
-                    <span style={{ color: "#a51c30" }}>{simScore1}%</span>
-                  </div>
-                  <input type="range" min="50" max="100" value={simScore1} onChange={(e) => setSimScore1(Number(e.target.value))} style={{ accentColor: "#a51c30", cursor: "pointer" }} />
-                </div>
-
-                <div style={{ display: "flex", flexDirection: "column", gap: "6px", marginTop: "10px" }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: "13px", fontWeight: 700, color: "#1e293b" }}>
-                    <span>CS 315 Software Engineering Estimate</span>
-                    <span style={{ color: "#a51c30" }}>{simScore2}%</span>
-                  </div>
-                  <input type="range" min="50" max="100" value={simScore2} onChange={(e) => setSimScore2(Number(e.target.value))} style={{ accentColor: "#a51c30", cursor: "pointer" }} />
-                </div>
-
-                <div style={{ display: "flex", flexDirection: "column", gap: "6px", marginTop: "10px" }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: "13px", fontWeight: 700, color: "#1e293b" }}>
-                    <span>MATH 241 Discrete Mathematics Estimate</span>
-                    <span style={{ color: "#a51c30" }}>{simScore3}%</span>
-                  </div>
-                  <input type="range" min="50" max="100" value={simScore3} onChange={(e) => setSimScore3(Number(e.target.value))} style={{ accentColor: "#a51c30", cursor: "pointer" }} />
-                </div>
-              </div>
-            </div>
-            <div className="pg-modal-footer">
-              <button className="pg-btn pg-btn-primary" onClick={() => setSimModalOpen(false)}>Done</button>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* Print-only block */}
       <div className="hidden print:block">
         <div className="pg-card" style={{ padding: 32 }}>
@@ -303,4 +238,3 @@ export default function StudentResultsPage() {
     </div>
   );
 }
-

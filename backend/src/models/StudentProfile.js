@@ -24,15 +24,15 @@ const studentProfileSchema = new mongoose.Schema(
     },
     programme: {
       type: String,
-      default: 'Diploma in Agronomy & Cocoa Extension',
+      default: '',
     },
     department: {
       type: String,
-      default: 'Agronomy',
+      default: '',
     },
     level: {
       type: String,
-      default: '200 (Year 2)',
+      default: '',
     },
     hallResidence: {
       type: String,
@@ -54,6 +54,15 @@ const studentProfileSchema = new mongoose.Schema(
       type: String,
       enum: ['active', 'registered', 'inactive'],
       default: 'registered',
+    },
+    admissionOfferStatus: {
+      type: String,
+      enum: ['not_offered', 'pending', 'accepted'],
+      default: 'not_offered',
+    },
+    admissionOfferAcceptedAt: {
+      type: Date,
+      default: null,
     },
   },
   { timestamps: true }

@@ -98,6 +98,10 @@ export default function AdminResultsPage() {
       setError('Select a CSV file first.');
       return;
     }
+    if (new Blob([csvText]).size > 5_000_000) {
+      setError('Results CSV files must be smaller than 5 MB.');
+      return;
+    }
 
     setIsImportingCsv(true);
     try {
@@ -111,7 +115,7 @@ export default function AdminResultsPage() {
         body: JSON.stringify({ csv: csvText }),
       });
 
-      const data = await response.json();
+      const data = await response.json().catch(() => ({}));
       if (!response.ok) {
         setError(data.message || 'Unable to import results CSV.');
         setNotice('');
@@ -125,6 +129,9 @@ export default function AdminResultsPage() {
         const next = await refreshed.json();
         setResults(next.results || []);
       }
+    } catch (reason) {
+      setError(reason instanceof Error ? `Results CSV upload failed: ${reason.message}` : 'Results CSV upload failed. Check your connection and try again.');
+      setNotice('');
     } finally {
       setIsImportingCsv(false);
     }
@@ -133,12 +140,17 @@ export default function AdminResultsPage() {
   async function handleResultsCsvFileChange(event: React.ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
     if (!file) return;
-    const content = await file.text();
-    setCsvText(content);
-    setCsvFileName(file.name);
-    setNotice('CSV loaded. Saving results...');
-    setError('');
-    await importResultsCsv();
+    if (file.size > 5_000_000) { setError('Choose a results CSV smaller than 5 MB.'); event.target.value = ''; return; }
+    try {
+      const content = await file.text();
+      setCsvText(content);
+      setCsvFileName(file.name);
+      setNotice('CSV loaded. Saving results...');
+      setError('');
+      await importResultsCsv();
+    } catch (reason) {
+      setError(reason instanceof Error ? `Unable to read CSV file: ${reason.message}` : 'Unable to read the selected CSV file.');
+    }
   }
 
   function startEditResult(result: Result) {
@@ -246,7 +258,7 @@ export default function AdminResultsPage() {
 
       <div className="rounded-[28px] bg-[#f8fafc] p-4 ring-1 ring-slate-200 sm:p-6">
         <form onSubmit={importResultsCsv} className="mb-6 rounded-xl bg-white p-4 ring-1 ring-slate-200">
-          <label className="mb-2 block text-sm font-semibold text-slate-700">Upload results CSV</label>
+          <label className="mb-2 block text-sm font-semibold text-slate-700">Upload results CSV <span className="font-normal text-slate-500">· up to 5 MB</span></label>
           <div className="mb-3 flex flex-col gap-3 rounded-lg border border-dashed border-slate-300 bg-slate-50 p-3">
             <input type="file" accept=".csv,text/csv" onChange={handleResultsCsvFileChange} className="block w-full text-sm text-slate-600 file:mr-4 file:rounded-lg file:border-0 file:bg-[#0d5a4d] file:px-3 file:py-2 file:text-sm file:font-semibold file:text-white" />
             {csvFileName && <span className="text-xs text-slate-500">Selected file: {csvFileName}</span>}

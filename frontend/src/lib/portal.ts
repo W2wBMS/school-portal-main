@@ -11,6 +11,8 @@ export type StudentOverview = {
     creditsCompleted?: number;
     feeBalance?: number;
     status?: string;
+    admissionOfferStatus?: 'not_offered' | 'pending' | 'accepted';
+    admissionOfferAcceptedAt?: string | null;
   } | null;
   results: ResultRow[];
   attendance: AttendanceRow[];
@@ -18,7 +20,7 @@ export type StudentOverview = {
   academicSummary: AcademicSummary;
 };
 
-export type ResultRow = { grade: string; score: number; semester: string; level?: string; academicYear?: string; courseId?: { code?: string; title?: string; credits?: number } };
+export type ResultRow = { grade: string; score: number; semester: string; level?: string; academicYear?: string; courseId?: { _id?: string; code?: string; title?: string; credits?: number } };
 export type AttendanceRow = { percentage: number; courseId?: { code?: string; title?: string } };
 export type FeeLedgerRow = { invoiceNumber: string; amountDue: number; amountPaid: number; balance: number; status: string; semester: string };
 export type AcademicSummary = { totalCredits: number; cgpa: number; semesters: Array<{ semester: string; level?: string; academicYear?: string; credits: number; gpa: number; results: ResultRow[] }> };

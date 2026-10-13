@@ -174,6 +174,7 @@ export default function AdminUsersPage() {
   async function importAdmissionCsv(event?: React.FormEvent, contents = csvText) {
     event?.preventDefault();
     if (!contents.trim()) { showMsg('Select or paste a CSV first.', 'error'); return; }
+    if (new Blob([contents]).size > 5_000_000) { showMsg('Admission CSV files must be smaller than 5 MB.', 'error'); return; }
     setIsImportingCsv(true);
     try {
       const response = await fetch(`${API_BASE}/users/admissions/import`, {
@@ -182,12 +183,14 @@ export default function AdminUsersPage() {
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${localStorage.getItem('portal_token') || ''}` },
         body: JSON.stringify({ csv: contents }),
       });
-      const data = await response.json();
+      const data = await response.json().catch(() => ({}));
       if (!response.ok) { showMsg(data.message || 'Unable to import CSV.', 'error'); return; }
       await loadAdmissions();
       showMsg(data.message || 'Admission list updated successfully.', 'success');
       setShowCsvImport(false);
       setActiveTab('admissions');
+    } catch (reason) {
+      showMsg(reason instanceof Error ? `Admission CSV upload failed: ${reason.message}` : 'Admission CSV upload failed. Check your connection and try again.', 'error');
     } finally {
       setIsImportingCsv(false);
     }
@@ -196,16 +199,22 @@ export default function AdminUsersPage() {
   async function handleCsvFileChange(event: React.ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
     if (!file) return;
-    const content = await file.text();
-    setCsvText(content);
-    setCsvFileName(file.name);
-    showMsg('CSV loaded. Saving admissions list…', 'info');
-    await importAdmissionCsv(undefined, content);
+    if (file.size > 5_000_000) { showMsg('Choose an admission CSV smaller than 5 MB.', 'error'); event.target.value = ''; return; }
+    try {
+      const content = await file.text();
+      setCsvText(content);
+      setCsvFileName(file.name);
+      showMsg('CSV loaded. Saving admissions list…', 'info');
+      await importAdmissionCsv(undefined, content);
+    } catch (reason) {
+      showMsg(reason instanceof Error ? `Unable to read CSV file: ${reason.message}` : 'Unable to read the selected CSV file.', 'error');
+    }
   }
 
   async function importLecturerCsv(event?: React.FormEvent) {
     event?.preventDefault();
     if (!lecturerCsvText.trim()) { showMsg('Add or select a lecturer CSV first.', 'error'); return; }
+    if (new Blob([lecturerCsvText]).size > 2_000_000) { showMsg('Lecturer CSV files must be smaller than 2 MB.', 'error'); return; }
     setIsImportingLecturers(true);
     try {
       const response = await fetch(`${API_BASE}/users/lecturers/import`, {
@@ -214,16 +223,18 @@ export default function AdminUsersPage() {
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${localStorage.getItem('portal_token') || ''}` },
         body: JSON.stringify({ csv: lecturerCsvText.trim() }),
       });
-      const data = await response.json();
+      const data = await response.json().catch(() => ({}));
       if (!response.ok && response.status !== 207) {
-        showMsg(data.duplicates?.length ? `${data.message} ${data.duplicates.join(', ')}` : data.message || 'Unable to import lecturer accounts.', 'error');
+        const rowErrors = Array.isArray(data.errors) ? data.errors.slice(0, 5).map((item: { row: number; message: string }) => `Row ${item.row}: ${item.message}`).join(' ') : '';
+        showMsg([data.duplicates?.length ? `${data.message} ${data.duplicates.join(', ')}` : data.message || 'Unable to import lecturer accounts.', rowErrors].filter(Boolean).join(' '), 'error');
         return;
       }
       if (data.users?.length) setUsers((cur) => [...data.users, ...cur]);
       setLecturerSetupLinks(data.setupLinks || []);
       const setupMessage = data.setupLinks?.length ? ` ${data.setupLinks.length} password setup link(s) generated.` : ' Setup emails sent.';
       const failed = data.errors?.length || 0;
-      showMsg(`${data.created || 0} lecturer account(s) created.${setupMessage}${failed ? ` ${failed} row(s) need attention.` : ''}`, failed ? 'error' : 'success');
+      const rowErrors = data.errors?.slice(0, 5).map((item: { row: number; message: string }) => `Row ${item.row}: ${item.message}`).join(' ') || '';
+      showMsg(`${data.created || 0} lecturer account(s) created.${setupMessage}${failed ? ` ${failed} row(s) need attention. ${rowErrors}` : ''}`, failed ? 'error' : 'success');
       if (!failed) setShowLecturerImport(false);
     } catch (reason) {
       showMsg(reason instanceof Error ? reason.message : 'Unable to import lecturer accounts.', 'error');
@@ -235,8 +246,13 @@ export default function AdminUsersPage() {
   async function handleLecturerCsvFileChange(event: React.ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
     if (!file) return;
-    setLecturerCsvText(await file.text());
-    setLecturerCsvFileName(file.name);
+    if (file.size > 2_000_000) { showMsg('Lecturer CSV files must be smaller than 2 MB.', 'error'); event.target.value = ''; return; }
+    try {
+      setLecturerCsvText(await file.text());
+      setLecturerCsvFileName(file.name);
+    } catch (reason) {
+      showMsg(reason instanceof Error ? `Unable to read CSV file: ${reason.message}` : 'Unable to read the selected CSV file.', 'error');
+    }
   }
 
   const filteredUsers = users.filter((u) =>
@@ -442,7 +458,7 @@ export default function AdminUsersPage() {
                     <Upload size={24} color="#a51c30" />
                     <div>
                       <label htmlFor="lecturer-csv-file" style={{ cursor: 'pointer', fontWeight: 700, color: '#a51c30' }}>
-                        Click to select CSV file
+                        Click to select CSV file (up to 2 MB)
                       </label>
                       <input id="lecturer-csv-file" type="file" accept=".csv,text/csv" onChange={handleLecturerCsvFileChange} style={{ display: 'none' }} />
                       {lecturerCsvFileName && <div style={{ marginTop: 4, fontSize: 12, color: '#475569' }}>Selected: {lecturerCsvFileName}</div>}
@@ -632,7 +648,7 @@ export default function AdminUsersPage() {
                     <Upload size={24} color="#a51c30" />
                     <div>
                       <label htmlFor="admission-csv-file" style={{ cursor: 'pointer', fontWeight: 700, color: '#a51c30' }}>
-                        Choose CSV File from computer
+                        Choose CSV File from computer (up to 5 MB)
                       </label>
                       <input id="admission-csv-file" type="file" accept=".csv,text/csv" onChange={handleCsvFileChange} style={{ display: 'none' }} />
                       {csvFileName && <div style={{ marginTop: 4, fontSize: 12, color: '#475569' }}>Selected: {csvFileName}</div>}

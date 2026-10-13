@@ -152,6 +152,7 @@ router.post('/claim-account', async (req, res) => {
       feeBalance: 0,
       hallResidence: '',
       status: 'registered',
+      admissionOfferStatus: 'pending',
     });
 
     return res.status(201).json({

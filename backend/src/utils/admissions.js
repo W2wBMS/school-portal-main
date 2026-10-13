@@ -9,57 +9,29 @@ function normalizeAdmissionLevel(value) {
   return match ? match[1] : normalized;
 }
 
-function parseCsvLine(line) {
-  const values = [];
-  let current = '';
-  let inQuotes = false;
-
-  for (let index = 0; index < line.length; index += 1) {
-    const char = line[index];
-    if (char === '"') {
-      if (inQuotes && line[index + 1] === '"') {
-        current += '"';
-        index += 1;
-      } else {
-        inQuotes = !inQuotes;
-      }
-      continue;
-    }
-    if (char === ',' && !inQuotes) {
-      values.push(current.trim());
-      current = '';
-      continue;
-    }
-    current += char;
-  }
-
-  values.push(current.trim());
-  return values;
-}
+const { parseCsvTable } = require('./csv');
 
 function parseAdmissionsCsv(csv) {
-  const lines = String(csv || '').split(/\r?\n/).filter((line) => line.trim());
-  if (lines.length < 2) throw new Error('The CSV must include a header row and at least one student row.');
+  const rows = parseCsvTable(csv);
+  const headers = Object.keys(rows[0].values);
+  const indexOf = (names) => headers.find((header) => names.includes(header));
+  const nameHeader = indexOf(['fullname', 'name', 'studentname']);
+  if (!nameHeader) throw new Error('The CSV must include a full name column such as fullName or full_name.');
 
-  const headers = parseCsvLine(lines[0]).map((header) => header.toLowerCase().replace(/[\s_-]/g, ''));
-  const indexOf = (names) => headers.findIndex((header) => names.includes(header));
-  const nameIndex = indexOf(['fullname', 'name', 'studentname']);
-  if (nameIndex < 0) throw new Error('The CSV must include a full name column such as fullName or full_name.');
+  const emailHeader = indexOf(['email', 'emailaddress']);
+  const programmeHeader = indexOf(['programme', 'program', 'degree']);
+  const departmentHeader = indexOf(['department', 'dept']);
+  const levelHeader = indexOf(['level', 'year']);
 
-  const emailIndex = indexOf(['email', 'emailaddress']);
-  const programmeIndex = indexOf(['programme', 'program', 'degree']);
-  const departmentIndex = indexOf(['department', 'dept']);
-  const levelIndex = indexOf(['level', 'year']);
+  if (rows.length > 5000) throw new Error('Admission CSV files can contain at most 5,000 student rows.');
+  return rows.map(({ rowNumber, values }) => {
+    const fullName = values[nameHeader] || '';
+    if (!fullName) throw new Error(`Admission CSV row ${rowNumber} has no full name.`);
 
-  return lines.slice(1).map((line, index) => {
-    const cells = parseCsvLine(line);
-    const fullName = cells[nameIndex] || '';
-    if (!fullName) throw new Error(`Admission CSV row ${index + 2} has no full name.`);
-
-    const email = emailIndex < 0 ? '' : cells[emailIndex] || '';
-    const programme = programmeIndex < 0 ? '' : cells[programmeIndex] || '';
-    const department = departmentIndex < 0 ? '' : cells[departmentIndex] || '';
-    const level = levelIndex < 0 ? '' : cells[levelIndex] || '';
+    const email = emailHeader ? values[emailHeader] || '' : '';
+    const programme = programmeHeader ? values[programmeHeader] || '' : '';
+    const department = departmentHeader ? values[departmentHeader] || '' : '';
+    const level = levelHeader ? values[levelHeader] || '' : '';
 
     return {
       fullName,

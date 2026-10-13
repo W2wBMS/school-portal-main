@@ -9,6 +9,14 @@
 
 Copy `.env.example` to `.env` and update values.
 
+## Admission offers and CSV imports
+
+Students who create an account through the admission-list claim flow receive a pending admission offer in their portal. They can review it, accept it once, and print or save a portal copy as PDF from **Admission offer**. Acceptance is recorded on the student profile with a timestamp.
+
+CSV imports support UTF-8 files, a header row, quoted values, commas inside fields, and quoted line breaks. Admission, course, and result CSV files are limited to 5 MB and 5,000 rows; lecturer CSV files are limited to 2 MB and 500 rows. Import errors include the row number where possible. Use the required headers shown beside each upload control.
+
+New student profiles do not assume a programme or year. Students only see courses after their course registration is approved, and the dashboard does not seed sample courses, schedules, grades, or tasks. If an existing profile contains the old default level, importing its matching admission record updates that default from the admission data.
+
 Rule configuration:
 
 - `CURRENT_SEMESTER` – semester used by current registration lookups

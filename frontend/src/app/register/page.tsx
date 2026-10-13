@@ -136,7 +136,7 @@ export default function RegisterPage() {
               value={form.level}
               onChange={(event) => setForm({ ...form, level: event.target.value })}
               className="input-field"
-              placeholder="200 (Year 2)"
+              placeholder="Enter your current level"
             />
           </div>
 

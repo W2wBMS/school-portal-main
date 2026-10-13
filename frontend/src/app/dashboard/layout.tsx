@@ -18,6 +18,7 @@ const navItems = {
     { label: "Fee statement", href: "/dashboard/student/fees", icon: CircleDollarSign },
     { label: "Payments", href: "/dashboard/student/payments", icon: WalletCards },
     { label: "Registration", href: "/dashboard/student/registration", icon: ClipboardList },
+    { label: "Admission offer", href: "/dashboard/student/admission-offer", icon: ScrollText },
     { label: "Transcript", href: "/dashboard/student/transcript", icon: FileText },
     { label: "My profile", href: "/dashboard/student/profile", icon: UserRound },
     { label: "Support", href: "/dashboard/student/support", icon: Bell },
@@ -53,11 +54,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [searchQuery, setSearchQuery] = useState("");
   const [profileOpen, setProfileOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
-  const [notifications, setNotifications] = useState([
-    { id: 1, title: "Assignment Graded", text: "CS 301 Database Schema design scored 88/100", time: "10m ago", read: false },
-    { id: 2, title: "Fee Reminder", text: "Semester balance due by Oct 15", time: "2h ago", read: false },
-    { id: 3, title: "Classroom Change", text: "MATH 241 moved to LT 4 for today", time: "1d ago", read: false },
-  ]);
+  const [notifications, setNotifications] = useState<{ id: number; title: string; text: string; time: string; read: boolean }[]>([]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -159,7 +156,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                   {unreadCount > 0 && <button onClick={markAllRead} className="popover-action">Mark all read</button>}
                 </div>
                 <div className="topbar-popover-list">
-                  {notifications.map((n) => (
+                  {notifications.length ? notifications.map((n) => (
                     <div key={n.id} className={`topbar-notification ${n.read ? "" : "is-unread"}`}>
                       <div className="topbar-notification-title">
                         <span>{n.title}</span>
@@ -167,7 +164,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                       </div>
                       <p>{n.text}</p>
                     </div>
-                  ))}
+                  )) : <p className="px-4 py-5 text-sm text-slate-500">You have no notifications.</p>}
                 </div>
               </div>
             )}

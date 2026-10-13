@@ -7,7 +7,9 @@ const AuditLog = require('../models/AuditLog');
 const { protect, authorize, authorizePermission } = require('../middleware/auth');
 const { audit } = require('../utils/audit');
 const { sendPasswordResetEmail } = require('../utils/mail');
-const { parseAdmissionsCsv } = require('../utils/admissions');
+const { normalizeAdmissionValue, parseAdmissionsCsv } = require('../utils/admissions');
+const { syncPendingAdmissionOffers } = require('../utils/admissionOffers');
+const { parseCsvTable } = require('../utils/csv');
 const { z } = require('zod');
 
 const router = express.Router();
@@ -23,36 +25,6 @@ const createUserSchema = z.object({
 
 function canCreatePrivilegedUsers(role) {
   return PRIVILEGED_CREATOR_ROLES.includes(role);
-}
-
-function parseCsvLine(line) {
-  const values = [];
-  let current = '';
-  let inQuotes = false;
-
-  for (let index = 0; index < line.length; index += 1) {
-    const char = line[index];
-    if (char === '"') {
-      if (inQuotes && line[index + 1] === '"') {
-        current += '"';
-        index += 1;
-      } else {
-        inQuotes = !inQuotes;
-      }
-      continue;
-    }
-
-    if (char === ',' && !inQuotes) {
-      values.push(current);
-      current = '';
-      continue;
-    }
-
-    current += char;
-  }
-
-  values.push(current);
-  return values.map((value) => value.trim());
 }
 
 function normalizeCsvRow(value) {
@@ -126,10 +98,30 @@ router.post('/', protect, authorize('student_affairs', 'department_admin', 'acad
     return res.status(403).json({ message: 'Only system administrators can create privileged users' });
   }
   try {
-    const user = await User.create({ ...details, role: requestedRole });
+    let admissionRecord = null;
+    if (requestedRole === 'student') {
+      const admissionList = await AdmissionList.findOne({ key: 'active' }).lean();
+      const matchingNames = (admissionList?.records || []).filter(
+        (record) => record.normalizedFullName === normalizeAdmissionValue(details.fullName)
+      );
+      admissionRecord = matchingNames.find(
+        (record) => record.email && record.email.toLowerCase() === details.email.toLowerCase()
+      ) || (matchingNames.length === 1 ? matchingNames[0] : null);
+    }
+    const academicDetails = admissionRecord
+      ? { programme: admissionRecord.programme, department: admissionRecord.department, level: admissionRecord.level }
+      : {};
+    const user = await User.create({ ...details, ...academicDetails, role: requestedRole });
     try {
       if (requestedRole === 'student') {
-        await StudentProfile.create({ userId: user._id, studentId: user.studentId, fullName: user.fullName, email: user.email });
+        await StudentProfile.create({
+          userId: user._id,
+          studentId: user.studentId,
+          fullName: user.fullName,
+          email: user.email,
+          ...academicDetails,
+          admissionOfferStatus: admissionRecord ? 'pending' : 'not_offered',
+        });
       }
     } catch (error) {
       await User.findByIdAndDelete(user._id);
@@ -149,10 +141,10 @@ router.get('/admissions', protect, authorize('student_affairs', 'department_admi
 });
 
 router.post('/admissions/import', protect, authorize('student_affairs', 'department_admin', 'academic_officer', 'system_admin', 'super_admin', 'hod', 'pro_vc', 'vc'), async (req, res) => {
-  const importSchema = z.object({ csv: z.string().min(10) });
+  const importSchema = z.object({ csv: z.string().min(10).max(5_000_000) });
   const parsed = importSchema.safeParse(req.body);
   if (!parsed.success) {
-    return res.status(400).json({ message: 'A valid CSV string is required.' });
+    return res.status(400).json({ message: 'Upload a CSV file smaller than 5 MB with a header and at least one student row.' });
   }
 
   try {
@@ -162,6 +154,7 @@ router.post('/admissions/import', protect, authorize('student_affairs', 'departm
       { $set: { records, importedAt: new Date() } },
       { new: true, upsert: true, runValidators: true, setDefaultsOnInsert: true }
     );
+    await syncPendingAdmissionOffers(records, { includeNotOffered: true });
     return res.json({
       message: `Admission list imported successfully (${records.length} records).`,
       importedCount: records.length,
@@ -175,33 +168,37 @@ router.post('/lecturers/import', protect, authorize('department_admin', 'academi
   const parsed = z.object({ csv: z.string().min(10).max(2_000_000) }).safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ message: 'A valid lecturer CSV is required.' });
 
-  const lines = parsed.data.csv.split(/\r?\n/).filter((line) => line.trim());
-  if (lines.length < 2 || lines.length > 501) return res.status(400).json({ message: 'Provide a header and between 1 and 500 lecturer rows.' });
-  const headers = parseCsvLine(lines[0]).map((header) => header.toLowerCase().replace(/[\s_-]/g, ''));
-  const nameIndex = headers.findIndex((header) => ['fullname', 'name'].includes(header));
-  const emailIndex = headers.indexOf('email');
-  const departmentIndex = headers.indexOf('department');
-  if (nameIndex < 0 || emailIndex < 0) return res.status(400).json({ message: 'CSV headers must include fullName and email. department is optional.' });
+  let table;
+  try {
+    table = parseCsvTable(parsed.data.csv);
+  } catch (error) {
+    return res.status(400).json({ message: error.message });
+  }
+  if (table.length > 500) return res.status(400).json({ message: 'Provide between 1 and 500 lecturer rows.' });
+  const headers = Object.keys(table[0].values);
+  const nameHeader = headers.find((header) => ['fullname', 'name'].includes(header));
+  const emailHeader = headers.find((header) => header === 'email');
+  const departmentHeader = headers.find((header) => header === 'department');
+  if (!nameHeader || !emailHeader) return res.status(400).json({ message: 'CSV headers must include fullName and email. department is optional.' });
 
   const rows = [];
   const rowErrors = [];
   const seenEmails = new Set();
-  for (let index = 1; index < lines.length; index += 1) {
-    const cells = parseCsvLine(lines[index]);
-    const fullName = normalizeCsvRow(cells[nameIndex]);
-    const email = String(cells[emailIndex] || '').trim().toLowerCase();
-    const department = departmentIndex < 0 ? '' : normalizeCsvRow(cells[departmentIndex]);
+  for (const { rowNumber, values } of table) {
+    const fullName = normalizeCsvRow(values[nameHeader]);
+    const email = String(values[emailHeader] || '').trim().toLowerCase();
+    const department = departmentHeader ? normalizeCsvRow(values[departmentHeader]) : '';
     const parsedEmail = z.string().email().safeParse(email);
     if (!fullName || !parsedEmail.success) {
-      rowErrors.push({ row: index + 1, message: 'A full name and valid email are required.' });
+      rowErrors.push({ row: rowNumber, message: 'A full name and valid email are required.' });
       continue;
     }
     if (seenEmails.has(email)) {
-      rowErrors.push({ row: index + 1, message: `Duplicate email in CSV: ${email}` });
+      rowErrors.push({ row: rowNumber, message: `Duplicate email in CSV: ${email}` });
       continue;
     }
     seenEmails.add(email);
-    rows.push({ row: index + 1, fullName, email, department });
+    rows.push({ row: rowNumber, fullName, email, department });
   }
   if (rowErrors.length) return res.status(400).json({ message: 'Fix the lecturer CSV rows and upload it again.', errors: rowErrors });
 

@@ -98,6 +98,39 @@ router.get('/students/me', protect, authorize('student'), async (req, res) => {
   return res.json({ profile: profile || req.user });
 });
 
+router.post('/students/me/admission-offer/accept', protect, authorize('student'), async (req, res) => {
+  const profile = await StudentProfile.findOne({ userId: req.user._id });
+  if (!profile || profile.admissionOfferStatus === 'not_offered') {
+    return res.status(404).json({ message: 'No admission offer is available for this account.' });
+  }
+  if (profile.admissionOfferStatus === 'accepted') {
+    return res.json({ message: 'Your admission offer has already been accepted.', profile });
+  }
+
+  const acceptedAt = new Date();
+  const updatedProfile = await StudentProfile.findOneAndUpdate(
+    { userId: req.user._id, admissionOfferStatus: 'pending' },
+    { $set: { admissionOfferStatus: 'accepted', admissionOfferAcceptedAt: acceptedAt } },
+    { returnDocument: 'after', runValidators: true }
+  );
+  if (!updatedProfile) {
+    const latestProfile = await StudentProfile.findOne({ userId: req.user._id });
+    if (latestProfile?.admissionOfferStatus === 'accepted') {
+      return res.json({ message: 'Your admission offer has already been accepted.', profile: latestProfile });
+    }
+    return res.status(409).json({ message: 'This admission offer is no longer available to accept.' });
+  }
+
+  await audit({
+    actorId: req.user._id,
+    action: 'admission.offer_accepted',
+    entity: 'StudentProfile',
+    entityId: updatedProfile._id,
+    after: { admissionOfferStatus: updatedProfile.admissionOfferStatus, admissionOfferAcceptedAt: acceptedAt },
+  });
+  return res.json({ message: 'Admission offer accepted successfully.', profile: updatedProfile });
+});
+
 router.put('/students/me', protect, authorize('student'), async (req, res) => {
   const allowed = ['fullName', 'programme', 'department', 'level', 'hallResidence'];
   const updates = Object.fromEntries(Object.entries(req.body).filter(([key]) => allowed.includes(key)));

@@ -12,6 +12,8 @@ const Registration = require('../models/Registration');
 const Notification = require('../models/Notification');
 const { audit } = require('../utils/audit');
 const { calculateAcademicSummary } = require('../utils/academics');
+const { parseCsvTable, normalizeCsvHeader } = require('../utils/csv');
+const { z } = require('zod');
 
 const router = express.Router();
 
@@ -97,43 +99,9 @@ async function canManageAttendance(user, courseId) {
   return Boolean(await Course.exists({ _id: courseId, lecturerId: user._id }));
 }
 
-function parseCsvLine(line) {
-  const values = [];
-  let current = '';
-  let inQuotes = false;
-
-  for (let index = 0; index < line.length; index += 1) {
-    const char = line[index];
-    if (char === '"') {
-      if (inQuotes && line[index + 1] === '"') {
-        current += '"';
-        index += 1;
-      } else {
-        inQuotes = !inQuotes;
-      }
-      continue;
-    }
-
-    if (char === ',' && !inQuotes) {
-      values.push(current);
-      current = '';
-      continue;
-    }
-
-    current += char;
-  }
-
-  values.push(current);
-  return values.map((value) => value.trim());
-}
-
-function normalizeCsvValue(value) {
-  return String(value || '').trim().toLowerCase().replace(/[^a-z0-9]+/g, ' ').replace(/\s+/g, ' ');
-}
-
 function pickCsvValue(row, keys) {
   for (const key of keys) {
-    const value = row[key];
+    const value = row[normalizeCsvHeader(key)];
     if (value !== undefined && value !== null && String(value).trim().length > 0) {
       return String(value).trim();
     }
@@ -142,17 +110,7 @@ function pickCsvValue(row, keys) {
 }
 
 function parseCsvRows(csv) {
-  const lines = String(csv || '').split(/\r?\n/).filter((line) => line.trim().length > 0);
-  if (lines.length < 2) return [];
-
-  const headers = parseCsvLine(lines[0]).map((header) => normalizeCsvValue(header));
-  return lines.slice(1).map((line) => {
-    const cells = parseCsvLine(line);
-    return headers.reduce((record, header, index) => {
-      record[header] = cells[index] || '';
-      return record;
-    }, {});
-  }).filter((row) => Object.values(row).some((value) => String(value).trim().length > 0));
+  return parseCsvTable(csv).map(({ values }) => values);
 }
 
 router.get('/student-overview', protect, async (req, res) => {
@@ -199,40 +157,65 @@ router.get('/courses/:id/roster', protect, authorize('lecturer', 'department_adm
 });
 
 router.post('/courses/import', protect, authorize('academic_officer', 'department_admin', 'system_admin', 'super_admin'), async (req, res) => {
-  const csv = String(req.body.csv || '');
-  const rows = parseCsvRows(csv);
+  const parsed = z.object({ csv: z.string().min(10).max(5_000_000) }).safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ message: 'Upload a CSV file smaller than 5 MB with a header and at least one course row.' });
+  let rows;
+  try {
+    rows = parseCsvTable(parsed.data.csv);
+  } catch (error) {
+    return res.status(400).json({ message: error.message });
+  }
+  if (rows.length > 5000) return res.status(400).json({ message: 'Course CSV files can contain at most 5,000 rows.' });
 
-  if (!rows.length) {
-    return res.status(400).json({ message: 'A valid CSV with course rows is required.' });
+  const prepared = [];
+  const rowErrors = [];
+  const seenCodes = new Set();
+  for (const { rowNumber, values } of rows) {
+    const code = pickCsvValue(values, ['code', 'coursecode', 'course_code']).toUpperCase();
+    const title = pickCsvValue(values, ['title', 'coursetitle', 'name']);
+    const creditsValue = pickCsvValue(values, ['credits', 'credit_hours', 'credit']);
+    const credits = creditsValue ? Number(creditsValue) : 3;
+    const department = pickCsvValue(values, ['department', 'school', 'faculty']) || 'General';
+    const semester = pickCsvValue(values, ['semester', 'term']) || 'Semester 1';
+    const scheduleDay = pickCsvValue(values, ['scheduleday', 'schedule_day', 'day']);
+    const startTime = pickCsvValue(values, ['starttime', 'start_time']);
+    const endTime = pickCsvValue(values, ['endtime', 'end_time']);
+    const room = pickCsvValue(values, ['room', 'location']);
+
+    if (!code || !title) {
+      rowErrors.push({ row: rowNumber, message: 'Course code and title are required.' });
+      continue;
+    }
+    if (!Number.isFinite(credits) || credits <= 0) {
+      rowErrors.push({ row: rowNumber, message: 'Credits must be a positive number.' });
+      continue;
+    }
+    if (seenCodes.has(code)) {
+      rowErrors.push({ row: rowNumber, message: `Duplicate course code in CSV: ${code}` });
+      continue;
+    }
+    seenCodes.add(code);
+    const payload = { code, title, credits, department, semester };
+    if (scheduleDay || startTime || endTime || room) Object.assign(payload, { scheduleDay, startTime, endTime, room });
+    const scheduleError = courseScheduleError(payload);
+    if (scheduleError) {
+      rowErrors.push({ row: rowNumber, message: scheduleError });
+      continue;
+    }
+    prepared.push(payload);
+  }
+  if (rowErrors.length) {
+    return res.status(400).json({
+      message: 'Fix the course CSV rows and upload the file again.',
+      errors: rowErrors.slice(0, 50),
+      totalErrors: rowErrors.length,
+    });
   }
 
   let created = 0;
   let updated = 0;
 
-  for (const row of rows) {
-    const code = pickCsvValue(row, ['code', 'coursecode', 'course_code']);
-    const title = pickCsvValue(row, ['title', 'coursetitle', 'name']);
-    const credits = Number(pickCsvValue(row, ['credits', 'credit_hours', 'credit']));
-    const department = pickCsvValue(row, ['department', 'school', 'faculty']) || 'General';
-    const semester = pickCsvValue(row, ['semester', 'term']) || 'Semester 1';
-    const scheduleDay = pickCsvValue(row, ['scheduleday', 'schedule_day', 'day']);
-    const startTime = pickCsvValue(row, ['starttime', 'start_time']);
-    const endTime = pickCsvValue(row, ['endtime', 'end_time']);
-    const room = pickCsvValue(row, ['room', 'location']);
-
-    if (!code || !title) continue;
-
-    const payload = {
-      code: code.toUpperCase(),
-      title,
-      credits: Number.isFinite(credits) && credits > 0 ? credits : 3,
-      department,
-      semester,
-    };
-    if (scheduleDay || startTime || endTime) Object.assign(payload, { scheduleDay, startTime, endTime, room });
-    const scheduleError = courseScheduleError(payload);
-    if (scheduleError) continue;
-
+  for (const payload of prepared) {
     const existingCourse = await Course.findOne({ code: payload.code });
     if (existingCourse) {
       await Course.findByIdAndUpdate(existingCourse._id, payload, { runValidators: true });
@@ -394,12 +377,16 @@ router.get('/results', protect, authorize('academic_officer', 'department_admin'
 });
 
 router.post('/results/import', protect, authorize('academic_officer', 'department_admin', 'system_admin', 'super_admin', 'lecturer', 'hod', 'pro_vc', 'vc'), async (req, res) => {
-  const csv = String(req.body.csv || '');
-  const rows = parseCsvRows(csv);
-
-  if (!rows.length) {
-    return res.status(400).json({ message: 'A valid CSV with result rows is required.' });
+  const parsed = z.object({ csv: z.string().min(10).max(5_000_000) }).safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ message: 'Upload a CSV file smaller than 5 MB with a header and at least one result row.' });
+  let rows;
+  try {
+    rows = parseCsvRows(parsed.data.csv);
+  } catch (error) {
+    return res.status(400).json({ message: error.message });
   }
+  if (!rows.length) return res.status(400).json({ message: 'A valid CSV with result rows is required.' });
+  if (rows.length > 5000) return res.status(400).json({ message: 'Result CSV files can contain at most 5,000 rows.' });
 
   let created = 0;
   let updated = 0;

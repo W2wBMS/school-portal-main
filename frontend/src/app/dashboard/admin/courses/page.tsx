@@ -92,6 +92,10 @@ export default function AdminCoursesPage() {
       setMessage('Select a CSV file first.');
       return;
     }
+    if (new Blob([sourceCsv]).size > 5_000_000) {
+      setMessage('Course CSV files must be smaller than 5 MB.');
+      return;
+    }
 
     setIsImportingCsv(true);
     try {
@@ -105,9 +109,10 @@ export default function AdminCoursesPage() {
         body: JSON.stringify({ csv: sourceCsv }),
       });
 
-      const data = await response.json();
+      const data = await response.json().catch(() => ({}));
       if (!response.ok) {
-        setMessage(data.message || 'Unable to import courses CSV.');
+        const rowErrors = Array.isArray(data.errors) ? data.errors.slice(0, 5).map((item: { row: number; message: string }) => `Row ${item.row}: ${item.message}`).join(' ') : '';
+        setMessage([data.message || 'Unable to import courses CSV.', rowErrors].filter(Boolean).join(' '));
         return;
       }
 
@@ -117,6 +122,8 @@ export default function AdminCoursesPage() {
         const next = await refreshed.json();
         setCourses(next.courses || []);
       }
+    } catch (reason) {
+      setMessage(reason instanceof Error ? `Course CSV upload failed: ${reason.message}` : 'Course CSV upload failed. Check your connection and try again.');
     } finally {
       setIsImportingCsv(false);
     }
@@ -125,11 +132,20 @@ export default function AdminCoursesPage() {
   async function handleCourseCsvFileChange(event: React.ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
     if (!file) return;
-    const content = await file.text();
-    setCsvText(content);
-    setCsvFileName(file.name);
-    setMessage('CSV loaded. Saving course list...');
-    await importCoursesCsv(undefined, content);
+    if (file.size > 5_000_000) {
+      setMessage('Choose a course CSV smaller than 5 MB.');
+      event.target.value = '';
+      return;
+    }
+    try {
+      const content = await file.text();
+      setCsvText(content);
+      setCsvFileName(file.name);
+      setMessage('CSV loaded. Saving course list...');
+      await importCoursesCsv(undefined, content);
+    } catch (reason) {
+      setMessage(reason instanceof Error ? `Unable to read CSV file: ${reason.message}` : 'Unable to read the selected CSV file.');
+    }
   }
 
   const assignedCount = courses.filter((course) => Boolean(course.lecturerId)).length;
@@ -150,7 +166,7 @@ export default function AdminCoursesPage() {
       </section>
 
       <form onSubmit={importCoursesCsv} className="mb-6 rounded-xl bg-white p-4 ring-1 ring-slate-200">
-        <label className="mb-2 block text-sm font-semibold text-slate-700">Upload course CSV</label>
+        <label className="mb-2 block text-sm font-semibold text-slate-700">Upload course CSV <span className="font-normal text-slate-500">· up to 5 MB</span></label>
         <div className="mb-3 flex flex-col gap-3 rounded-lg border border-dashed border-slate-300 bg-slate-50 p-3">
           <input type="file" accept=".csv,text/csv" onChange={handleCourseCsvFileChange} className="block w-full text-sm text-slate-600 file:mr-4 file:rounded-lg file:border-0 file:bg-[#0d5a4d] file:px-3 file:py-2 file:text-sm file:font-semibold file:text-white" />
           {csvFileName && <span className="text-xs text-slate-500">Selected file: {csvFileName}</span>}
@@ -162,6 +178,7 @@ export default function AdminCoursesPage() {
           </button>
         </div>
       </form>
+      {message && <p className="mb-5 text-sm text-slate-700" role="status" aria-live="polite">{message}</p>}
 
       {(editingId === 'new' || editingId) && <form onSubmit={saveCourse} className="mb-6 grid gap-3 rounded-xl bg-white p-4 ring-1 ring-slate-200 md:grid-cols-4">
         {(['code', 'title', 'credits', 'department', 'semester'] as const).map((field) => <input key={field} required={field !== 'department' && field !== 'semester'} value={form[field]} onChange={(event) => setForm({ ...form, [field]: event.target.value })} placeholder={field} className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" />)}

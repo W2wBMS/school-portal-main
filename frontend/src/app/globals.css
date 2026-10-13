@@ -1772,3 +1772,81 @@ input, select, button {
   color: #052e16;
 }
 
+.admission-offer-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  border: 1px solid #e7c9cc;
+  border-radius: 14px;
+  background: #fffafa;
+  padding: 18px 20px;
+}
+.admission-offer-banner > div { display: flex; align-items: center; gap: 14px; }
+.admission-offer-mark { display: grid; width: 42px; height: 42px; flex: 0 0 auto; place-items: center; border-radius: 11px; background: #f8e9eb; color: #891727; }
+.admission-offer-banner h2 { margin: 0; color: #45141c; font-size: 16px; font-weight: 800; }
+.admission-offer-banner p { margin: 4px 0 0; color: #70484d; font-size: 13px; line-height: 1.5; }
+.admission-offer-banner > a { display: inline-flex; min-height: 42px; flex: 0 0 auto; align-items: center; gap: 9px; border-radius: 8px; background: #891727; padding: 0 14px; color: #fff; font-size: 13px; font-weight: 750; }
+.admission-offer-banner > a:hover { background: #68111e; }
+.admission-offer-page { display: grid; max-width: 980px; gap: 14px; margin: 0 auto; }
+.admission-offer-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.admission-offer-toolbar h1 { margin: 0; color: #271719; font-family: Georgia, serif; font-size: clamp(26px, 4vw, 36px); letter-spacing: -.025em; }
+.admission-offer-toolbar p { margin: 5px 0 0; color: #65585a; font-size: 14px; }
+.admission-offer-download,.admission-offer-accept { display: inline-flex; min-height: 44px; flex: 0 0 auto; align-items: center; justify-content: center; gap: 9px; border: 0; border-radius: 8px; background: #891727; padding: 0 15px; color: #fff; font-size: 13px; font-weight: 800; }
+.admission-offer-download:hover,.admission-offer-accept:hover { background: #68111e; }
+.admission-offer-download:focus-visible,.admission-offer-accept:focus-visible { outline: 3px solid #d7bd82; outline-offset: 3px; }
+.admission-offer-accept:disabled { cursor: wait; opacity: .7; }
+.admission-offer-print-hint { margin: -5px 0 0; color: #65585a; font-size: 12px; }
+.admission-offer-document { border: 1px solid #e2d9d3; background: #fff; padding: clamp(26px, 6vw, 64px); color: #292323; box-shadow: 0 12px 30px rgba(37, 24, 21, .07); }
+.admission-offer-letterhead { display: flex; align-items: center; gap: 14px; border-bottom: 2px solid #891727; padding-bottom: 21px; color: #60111e; }
+.admission-offer-seal { display: grid; width: 50px; height: 50px; flex: 0 0 auto; place-items: center; border: 1px solid #d8bd82; border-radius: 50%; color: #891727; }
+.admission-offer-letterhead p { margin: 0; font-family: Georgia, serif; font-size: 15px; font-weight: 700; letter-spacing: .045em; }
+.admission-offer-letterhead p + p { margin-top: 3px; font-size: 12px; letter-spacing: .11em; }
+.admission-offer-document-title { margin-top: 35px; }
+.admission-offer-document-title span { color: #891727; font-size: 10px; font-weight: 800; letter-spacing: .19em; }
+.admission-offer-document-title h2 { margin: 8px 0 0; color: #271719; font-family: Georgia, serif; font-size: clamp(27px, 4vw, 38px); letter-spacing: -.02em; }
+.admission-offer-date { margin: 10px 0 30px; color: #65585a; font-size: 12px; }
+.admission-offer-document > p:not(.admission-offer-date) { max-width: 70ch; margin: 17px 0; color: #383234; font-size: 14px; line-height: 1.75; }
+.admission-offer-details { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); margin: 27px 0; border-top: 1px solid #e8dfdb; }
+.admission-offer-details > div { min-width: 0; border-bottom: 1px solid #e8dfdb; padding: 14px 12px 14px 0; }
+.admission-offer-details dt { color: #65585a; font-size: 11px; font-weight: 700; }
+.admission-offer-details dd { margin: 5px 0 0; overflow-wrap: anywhere; color: #271719; font-size: 14px; font-weight: 750; }
+.admission-offer-status { display: flex; align-items: center; gap: 10px; margin-top: 29px; border-radius: 9px; padding: 13px 15px; }
+.admission-offer-status.is-pending { background: #fff6e4; color: #704811; }
+.admission-offer-status.is-accepted { background: #eaf5ed; color: #205d36; }
+.admission-offer-status > div { display: grid; gap: 2px; }
+.admission-offer-status strong { font-size: 13px; }
+.admission-offer-status span:not(.admission-offer-status-dot) { font-size: 11px; }
+.admission-offer-status-dot { width: 9px; height: 9px; border-radius: 50%; background: #a56b16; }
+.admission-offer-document footer { margin-top: 32px; border-top: 1px solid #e8dfdb; padding-top: 12px; color: #65585a; font-size: 10px; line-height: 1.5; }
+.admission-offer-acceptance { display: flex; align-items: center; justify-content: space-between; gap: 16px; border-top: 1px solid #e8dfdb; padding-top: 18px; }
+.admission-offer-acceptance h2 { margin: 0; color: #271719; font-size: 15px; font-weight: 800; }
+.admission-offer-acceptance p { margin: 4px 0 0; color: #65585a; font-size: 12px; }
+.admission-offer-feedback { display: flex; align-items: center; gap: 8px; border-radius: 8px; padding: 11px 13px; font-size: 13px; font-weight: 650; }
+.admission-offer-feedback.success { background: #eaf5ed; color: #205d36; }
+.admission-offer-feedback.error { background: #fff0f0; color: #8a1b29; }
+.admission-offer-loading { display: flex; min-height: 160px; align-items: center; justify-content: center; gap: 10px; color: #65585a; }
+.admission-offer-empty { display: grid; min-height: 260px; align-content: center; justify-items: center; gap: 10px; border: 1px solid #e2d9d3; background: #fff; padding: 28px; text-align: center; color: #891727; }
+.admission-offer-empty h1 { margin: 0; color: #271719; font-family: Georgia, serif; font-size: 25px; }
+.admission-offer-empty p { margin: 0; color: #65585a; font-size: 14px; }
+.dashboard-empty-state { margin: 0; padding: 22px 24px; color: #65585a; font-size: 13px; line-height: 1.6; }
+.dashboard-empty-state a { color: #891727; font-weight: 750; text-decoration: underline; text-underline-offset: 3px; }
+.schedule-instructor { color: #65585a; font-size: 12px; }
+.dashboard-task-empty { display: flex; min-height: 105px; align-items: center; gap: 11px; color: #65585a; }
+.dashboard-task-empty svg { flex: 0 0 auto; color: #891727; }
+.dashboard-task-empty p { margin: 0; font-size: 13px; line-height: 1.55; }
+@media (max-width: 640px) {
+  .admission-offer-banner { align-items: flex-start; flex-direction: column; }
+  .admission-offer-banner > a { width: 100%; justify-content: center; }
+  .admission-offer-toolbar { align-items: stretch; flex-direction: column; }
+  .admission-offer-download { width: 100%; }
+  .admission-offer-details { grid-template-columns: 1fr; }
+  .admission-offer-acceptance { align-items: stretch; flex-direction: column; }
+}
+@media print {
+  @page { size: A4; margin: 18mm; }
+  body, .portal-app, .portal-workspace, .portal-main { display: block !important; width: auto !important; min-height: 0 !important; margin: 0 !important; padding: 0 !important; background: #fff !important; }
+  .portal-sidebar, .portal-topbar, .mobile-nav, .skip-link, .admission-offer-toolbar, .admission-offer-print-hint, .admission-offer-acceptance, .admission-offer-feedback { display: none !important; }
+  .admission-offer-page { display: block !important; max-width: none !important; }
+  .admission-offer-document { border: 0 !important; padding: 0 !important; box-shadow: none !important; }
+}
